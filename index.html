@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rothirsch-Nachweis melden</title>
+<style>
+  :root {
+    --ink: #1c2418; --paper: #f6f4ee; --moss: #3c5a3e;
+    --moss-dark: #24391f; --line: #d8d2c2;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; min-height: 100%;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--paper); color: var(--ink);
+  }
+  header {
+    background: var(--moss-dark); color: var(--paper);
+    padding: 18px 20px;
+  }
+  header h1 { font-size: 18px; margin: 0 0 4px; }
+  header p { font-size: 13px; margin: 0; opacity: 0.85; }
+
+  #gate {
+    max-width: 480px; margin: 24px auto; padding: 0 16px;
+  }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    padding: 20px; margin-bottom: 16px;
+  }
+  .status {
+    padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-top: 12px;
+  }
+  .status.idle { background: #eef1ea; color: #55503f; }
+  .status.searching { background: #fff6d8; color: #6b5b00; }
+  .status.found { background: #e1fede; color: #1c4a1c; }
+  .status.error { background: #fecbcc; color: #7a1010; }
+
+  button {
+    width: 100%; padding: 14px; font-size: 15px; font-weight: 600;
+    background: var(--moss); color: #fff; border: none; border-radius: 8px;
+    cursor: pointer;
+  }
+  button:hover { background: var(--moss-dark); }
+  button:disabled { background: #b7b19a; cursor: not-allowed; }
+
+  .skip {
+    display: block; text-align: center; margin-top: 12px;
+    font-size: 13px; color: #6b6552; text-decoration: underline; cursor: pointer;
+    background: none; border: none; width: auto; font-weight: 400; padding: 4px;
+  }
+  .skip:hover { background: none; color: var(--moss-dark); }
+
+  #formwrap { display: none; }
+  #formwrap iframe {
+    width: 100%; height: 900px; border: none; display: block;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Rothirsch-Nachweis melden</h1>
+  <p>Abschuss, Sichtung, Fallwild oder Kamerafalle – dauert unter 2 Minuten.</p>
+</header>
+
+<div id="gate">
+  <div class="card">
+    <p>Standort wird automatisch erfasst \u2013 bitte im Browser die Standortfreigabe erlauben, falls gefragt.</p>
+    <button id="locateBtn" onclick="requestLocation()" style="display:none;">📍 Standort erneut abrufen</button>
+    <div id="status" class="status searching">Standort wird ermittelt …</div>
+    <button id="continueBtn" style="margin-top:14px; display:none;" onclick="loadForm()">Weiter zum Formular →</button>
+    <button class="skip" onclick="loadForm()">Ohne automatischen Standort fortfahren (Koordinaten später manuell eintragen)</button>
+  </div>
+</div>
+
+<div id="formwrap">
+  <iframe id="gristFrame" title="Rothirsch-Nachweis Formular"></iframe>
+</div>
+
+<script>
+  // ==========================================================================
+  // WICHTIG: Hier die echte Grist-Formular-URL eintragen (aus Grist:
+  // Formular-Editor -> "Share"/"Freigeben" -> Link kopieren).
+  // Sieht etwa so aus: https://docs.getgrist.com/forms/xxxxxxxxxxxxx/4
+  // ==========================================================================
+  const GRIST_FORM_URL = "https://docs.getgrist.com/forms/94dxPocKYU1bJpGD2N6MFx/13";
+
+  let lat = null, lng = null;
+
+  function requestLocation() {
+    const statusEl = document.getElementById('status');
+    const btn = document.getElementById('locateBtn');
+
+    if (!navigator.geolocation) {
+      statusEl.className = 'status error';
+      statusEl.textContent = 'Dieser Browser unterstützt keine Standorterfassung. Bitte "Ohne automatischen Standort fortfahren" nutzen.';
+      btn.style.display = 'none';
+      return;
+    }
+
+    btn.disabled = true;
+    statusEl.className = 'status searching';
+    statusEl.textContent = 'Standort wird ermittelt …';
+
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+        statusEl.className = 'status found';
+        statusEl.textContent = 'Standort erfasst: ' + lat.toFixed(5) + ', ' + lng.toFixed(5) +
+          ' (Genauigkeit ±' + Math.round(pos.coords.accuracy) + ' m) \u2013 weiter zum Formular …';
+        btn.disabled = false;
+        btn.style.display = 'none';
+        document.getElementById('continueBtn').style.display = 'none';
+        // Automatisch weiter, kurze Pause damit die Bestätigung sichtbar ist
+        setTimeout(loadForm, 900);
+      },
+      function (err) {
+        statusEl.className = 'status error';
+        statusEl.textContent = 'Standort konnte nicht ermittelt werden (' + err.message + '). Bitte erneut versuchen oder ohne automatischen Standort fortfahren.';
+        btn.disabled = false;
+        btn.style.display = 'block';
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  function loadForm() {
+    let url = GRIST_FORM_URL;
+    if (lat !== null && lng !== null) {
+      const sep = url.includes('?') ? '&' : '?';
+      url = url + sep + 'Latitude=' + encodeURIComponent(lat) + '&Longitude=' + encodeURIComponent(lng);
+    }
+    document.getElementById('gristFrame').src = url;
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('formwrap').style.display = 'block';
+  }
+
+  // Beim Laden der Seite automatisch starten
+  window.addEventListener('DOMContentLoaded', requestLocation);
+</script>
+
+</body>
+</html>
